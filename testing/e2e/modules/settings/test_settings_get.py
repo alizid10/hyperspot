@@ -38,6 +38,9 @@ async def test_get_settings_returns_defaults(base_url, auth_headers):
         assert isinstance(settings["theme"], str)
         assert isinstance(settings["language"], str)
 
+        assert settings["theme"] == ""
+        assert settings["language"] == ""
+
 
 @pytest.mark.asyncio
 async def test_get_settings_multiple_times(base_url, auth_headers):

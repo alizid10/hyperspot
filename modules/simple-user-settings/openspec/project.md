@@ -33,7 +33,7 @@ Follow the architecture manifest: [`@/docs/ARCHITECTURE_MANIFEST.md`](../../../d
 
 Follow the new module guideline: [`@/guidelines/NEW_MODULE.md`](../../../guidelines/NEW_MODULE.md)
 
-```
+```text
 modules/<module>/
 ├─ <module>-sdk/           # Public API: trait, models, errors (NO serde)
 │  └─ src/

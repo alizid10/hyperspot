@@ -38,7 +38,7 @@ The settings module is being migrated from Go to Rust as part of HyperSpot's mod
 ## Decisions
 
 ### Decision 1: SDK Pattern with SecurityContext
-**What:** Separate `settings-sdk` crate containing API trait, models, and errors. All API methods take `&SecurityContext` as first parameter.
+**What:** Separate `simple-user-settings-sdk` crate containing API trait, models, and errors. All API methods take `&SecurityContext` as first parameter.
 
 **Why:**
 - Clean separation of public API from implementation

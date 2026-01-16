@@ -19,4 +19,4 @@ pub mod models;
 
 pub use api::SimpleUserSettingsApi;
 pub use errors::SettingsError;
-pub use models::{SimpleUserSettings, SimpleUserSettingsPatch};
+pub use models::{SimpleUserSettings, SimpleUserSettingsPatch, SimpleUserSettingsUpdate};

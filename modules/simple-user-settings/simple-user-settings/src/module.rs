@@ -44,8 +44,8 @@ impl modkit::contracts::DatabaseCapability for SettingsModule {
         use sea_orm_migration::MigratorTrait;
 
         info!("Running settings database migrations");
-        let conn = db.sea();
-        crate::infra::storage::migrations::Migrator::up(&conn, None).await?;
+        let conn = db.sea_secure();
+        crate::infra::storage::migrations::Migrator::up(conn.conn(), None).await?;
         info!("Settings database migrations completed");
         Ok(())
     }

@@ -118,7 +118,7 @@ The system SHALL store user settings with the following fields:
 
 ### Requirement: Error Handling
 
- The system SHALL return RFC-9457 Problem Details for all error responses with appropriate HTTP status codes.
+The system SHALL return RFC-9457 Problem Details for all error responses with appropriate HTTP status codes.
 
 #### Scenario: Validation error
 - **WHEN** invalid data is provided (e.g., excessively long strings)

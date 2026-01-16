@@ -4,6 +4,7 @@
 
 pub use simple_user_settings_sdk::{
     SettingsError, SimpleUserSettings, SimpleUserSettingsApi, SimpleUserSettingsPatch,
+    SimpleUserSettingsUpdate,
 };
 
 pub mod module;

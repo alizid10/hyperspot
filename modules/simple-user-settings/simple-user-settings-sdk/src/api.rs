@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use modkit_security::SecurityContext;
 
 use crate::errors::SettingsError;
-use crate::models::{SimpleUserSettings, SimpleUserSettingsPatch};
+use crate::models::{SimpleUserSettings, SimpleUserSettingsPatch, SimpleUserSettingsUpdate};
 
 /// Public API trait for the settings module.
 ///
@@ -27,8 +27,7 @@ pub trait SimpleUserSettingsApi: Send + Sync {
     async fn update_settings(
         &self,
         ctx: &SecurityContext,
-        theme: Option<String>,
-        language: Option<String>,
+        update: SimpleUserSettingsUpdate,
     ) -> Result<SimpleUserSettings, SettingsError>;
 
     /// Partially update settings (PATCH semantics).
