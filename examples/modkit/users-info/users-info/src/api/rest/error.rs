@@ -1,70 +1,48 @@
 use modkit::api::problem::Problem;
+use modkit_errors::GtsError as _;
 
 use crate::domain::error::DomainError;
-use crate::errors::ErrorCode;
+use crate::errors::{
+    EmailConflictV1, InternalDatabaseV1, InvalidEmailV1, UserNotFoundV1, UserValidationV1,
+};
 
-/// Map domain error to RFC9457 Problem using the catalog
-pub fn domain_error_to_problem(e: &DomainError, instance: &str) -> Problem {
-    // Extract trace ID from current tracing span if available
-    let trace_id = tracing::Span::current()
-        .id()
-        .map(|id| id.into_u64().to_string());
-
-    match &e {
-        DomainError::UserNotFound { id } => ErrorCode::example1_user_not_found_v1().with_context(
-            format!("User with id {id} was not found"),
-            instance,
-            trace_id,
-        ),
-        DomainError::NotFound { entity_type, id } => ErrorCode::example1_user_not_found_v1()
-            .with_context(
-                format!("{entity_type} with id {id} was not found"),
-                instance,
-                trace_id,
-            ),
-        DomainError::EmailAlreadyExists { email } => ErrorCode::example1_user_invalid_email_v1()
-            .with_context(
-                format!("Email '{email}' is already in use"),
-                instance,
-                trace_id,
-            ),
-        DomainError::InvalidEmail { email } => ErrorCode::example1_user_invalid_email_v1()
-            .with_context(format!("Email '{email}' is invalid"), instance, trace_id),
-        DomainError::EmptyDisplayName => ErrorCode::example1_user_validation_v1().with_context(
-            "Display name cannot be empty",
-            instance,
-            trace_id,
-        ),
-        DomainError::DisplayNameTooLong { .. } | DomainError::Validation { .. } => {
-            ErrorCode::example1_user_validation_v1().with_context(
-                format!("{e}"),
-                instance,
-                trace_id,
-            )
-        }
-        DomainError::Database { .. } => {
-            // Log the internal error details but don't expose them to the client
-            tracing::error!(error = ?e, "Database error occurred");
-            ErrorCode::example1_user_internal_database_v1().with_context(
-                "An internal database error occurred",
-                instance,
-                trace_id,
-            )
-        }
-        DomainError::InternalError => {
-            tracing::error!(error = ?e, "Internal error occurred");
-            ErrorCode::example1_user_internal_database_v1().with_context(
-                "An internal error occurred",
-                instance,
-                trace_id,
-            )
-        }
-    }
-}
-
-/// Implement Into<Problem> for `DomainError` so `?` works in handlers
 impl From<DomainError> for Problem {
     fn from(e: DomainError) -> Self {
-        domain_error_to_problem(&e, "/")
+        match e {
+            DomainError::UserNotFound { id } => UserNotFoundV1 {
+                message: format!("User with id {id} was not found"),
+            }
+            .into_problem(),
+            DomainError::NotFound { entity_type, id } => UserNotFoundV1 {
+                message: format!("{entity_type} with id {id} was not found"),
+            }
+            .into_problem(),
+            DomainError::EmailAlreadyExists { email } => EmailConflictV1 {
+                message: format!("Email '{email}' is already in use"),
+            }
+            .into_problem(),
+            DomainError::InvalidEmail { email } => InvalidEmailV1 {
+                message: format!("Email '{email}' is invalid"),
+            }
+            .into_problem(),
+            DomainError::EmptyDisplayName => UserValidationV1 {
+                message: "Display name cannot be empty".into(),
+            }
+            .into_problem(),
+            DomainError::DisplayNameTooLong { .. } | DomainError::Validation { .. } => {
+                UserValidationV1 {
+                    message: e.to_string(),
+                }
+                .into_problem()
+            }
+            DomainError::Database { .. } => {
+                tracing::error!(error = ?e, "Database error occurred");
+                InternalDatabaseV1 {}.into_problem()
+            }
+            DomainError::InternalError => {
+                tracing::error!("Internal error occurred");
+                InternalDatabaseV1 {}.into_problem()
+            }
+        }
     }
 }

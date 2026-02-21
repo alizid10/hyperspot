@@ -1,13 +1,13 @@
 //! MIME type validation middleware for enforcing per-operation allowed Content-Type headers
 use axum::extract::Request;
-use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use dashmap::DashMap;
 use http::Method;
 use std::sync::Arc;
 
-use modkit::api::{OperationSpec, Problem};
+use modkit::api::OperationSpec;
+use modkit::api::problem::{GtsError as _, UnsupportedMediaTypeV1};
 
 /// Map from (method, path) to allowed content types
 pub type MimeValidationMap = Arc<DashMap<(Method, String), Vec<&'static str>>>;
@@ -39,13 +39,10 @@ fn extract_content_type(req: &Request) -> Option<String> {
 }
 
 /// Create an Unsupported Media Type error response.
-fn create_unsupported_media_type_error(detail: String) -> Response {
-    Problem::new(
-        StatusCode::UNSUPPORTED_MEDIA_TYPE,
-        "Unsupported Media Type",
-        detail,
-    )
-    .into_response()
+fn create_unsupported_media_type_error(message: String) -> Response {
+    UnsupportedMediaTypeV1 { message }
+        .into_problem()
+        .into_response()
 }
 
 /// Validate that the content type is in the allowed list.

@@ -4,7 +4,7 @@ date: 2026-02-11
 deciders: CyberFabric Core Team
 ---
 
-# Struct-Based Error Definition with `#[gts_error]` Proc Macro
+# Struct-Based Error Definition with GtsError Trait and Proc Macros
 
 **ID**: `cpt-cf-ues-adr-gts-error-macro`
 
@@ -36,14 +36,13 @@ Chosen option: "`#[gts_error]` proc macro on explicit structs", because it makes
 * Good, because GTS IDs are visible as string literals on each error struct — searchable via `grep`/`rg`
 * Good, because compile-time validation catches format errors, missing attributes, and type mismatches
 * Good, because struct fields are the sole source for `metadata` — no runtime injection possible
-* Good, because generated `ERROR_DEF` constant enables zero-cost error registration
-* Good, because `#[gts_error(skip_metadata)]` and `#[gts_error(as_errors)]` attributes provide fine-grained control over metadata serialization
+* Good, because `#[serde(skip_serializing)]` and standard serde attributes provide fine-grained control over metadata serialization
 * Bad, because proc macros add compile time overhead
 * Bad, because macro-generated code is harder to debug (expanded code not directly visible)
 
 ### Confirmation
 
-* All error types in `modkit-errors` and module crates use `#[gts_error]` attribute
+* All error types in `modkit-errors` and module crates use `#[struct_to_gts_schema]` attribute + `GtsError` trait implementation
 * No error types construct Problem directly — all go through `into_problem()`
 * Compile-time tests verify macro rejects invalid GTS format and missing attributes
 * Code review checklist includes "no raw Problem construction" rule
@@ -52,13 +51,12 @@ Chosen option: "`#[gts_error]` proc macro on explicit structs", because it makes
 
 ### `#[gts_error]` proc macro on explicit structs
 
-Each error is a dedicated Rust struct with `#[gts_error(type = "...", base = BaseError, status = NNN, title = "...")]`. The macro generates constants, `into_problem()`, `Display`, and `Error` implementations.
+Each error metadata is a dedicated Rust struct with `#[struct_to_gts_schema(schema_id = "...", base = BaseErrorV1)]`. The `GtsError` trait is implemented for the metadata struct with `STATUS` and `TITLE` constants. The macro generates `GtsSchema` implementation; the trait provides `into_problem()`.
 
 * Good, because GTS IDs are visible as attribute arguments — easily searchable
 * Good, because compile-time validation of all attributes
 * Good, because struct fields are the only source for metadata — auditable and type-safe
-* Good, because `ERROR_DEF` constant enables zero-cost registration
-* Good, because field attributes (`skip_metadata`, `as_errors`) provide metadata control
+* Good, because serde field attributes (`skip_serializing`, etc.) provide metadata control
 * Good, because each error is a distinct type — enables pattern matching in error mapping
 * Bad, because proc macro adds compile time cost
 * Bad, because expanded code requires `cargo expand` to inspect
@@ -98,7 +96,7 @@ Error types constructed at runtime via a builder: `Problem::builder().gts_type("
 
 ## More Information
 
-The macro expansion for a typical error struct generates approximately 30 lines of code including constants, `into_problem()`, `Display`, and `Error` implementations. For unit structs (no fields), `metadata` is `None`. For structs with fields, each field is inserted into a `HashMap<String, serde_json::Value>` unless annotated with `#[gts_error(skip_metadata)]`.
+The `#[struct_to_gts_schema]` macro generates the `GtsSchema` implementation with schema ID constants. The `GtsError` trait provides `into_problem()` which serializes the error struct (including its `metadata` field) to an RFC 9457 Problem struct. For unit structs (e.g., `ForbiddenV1;`), the `metadata` field is omitted from the response via `is_empty_metadata`. For structs with fields, each field serializes into a nested `metadata` JSON object unless annotated with `#[serde(skip_serializing)]`.
 
 ## Traceability
 

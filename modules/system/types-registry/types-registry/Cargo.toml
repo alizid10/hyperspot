@@ -45,6 +45,9 @@ modkit = { workspace = true }
 modkit-auth = { workspace = true }
 modkit-security = { workspace = true }
 modkit-macros = { workspace = true }
+modkit-errors = { workspace = true }
+gts-macros = { workspace = true }
+schemars = { workspace = true }
 
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }

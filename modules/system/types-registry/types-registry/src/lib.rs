@@ -26,6 +26,9 @@ pub use module::TypesRegistryModule;
 // === CONFIGURATION ===
 pub mod config;
 
+// === ERROR CATALOG ===
+pub mod errors;
+
 // === INTERNAL MODULES ===
 #[doc(hidden)]
 pub mod api;

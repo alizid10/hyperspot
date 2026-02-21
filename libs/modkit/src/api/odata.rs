@@ -170,7 +170,7 @@ where
 
                 // Delegate to centralized error mapping (single source of truth)
                 // This handles ParsingUnavailable → 500 and InvalidFilter → 400
-                crate::api::odata::odata_error_to_problem(&e, parts.uri.path(), None)
+                crate::api::odata::odata_error_to_problem(&e)
             })?;
 
             if parsed.node_count() > MAX_NODES {
@@ -199,23 +199,20 @@ where
     if params.cursor.is_some() && params.orderby.is_some() {
         return Err(crate::api::odata::odata_error_to_problem(
             &ODataError::OrderWithCursor,
-            "/",
-            None,
         ));
     }
 
     // Parse cursor first (if present, skip orderby)
     if let Some(cursor_str) = params.cursor.as_ref() {
-        let cursor = CursorV1::decode(cursor_str).map_err(|_| {
-            crate::api::odata::odata_error_to_problem(&ODataError::InvalidCursor, "/", None)
-        })?;
+        let cursor = CursorV1::decode(cursor_str)
+            .map_err(|_| crate::api::odata::odata_error_to_problem(&ODataError::InvalidCursor))?;
         query = query.with_cursor(cursor);
         // When cursor is present, order is empty (derived from cursor.s later)
         query = query.with_order(ODataOrderBy::empty());
     } else if let Some(raw_orderby) = params.orderby.as_ref() {
         // Parse orderby only when cursor is absent
         let order = parse_orderby(raw_orderby)
-            .map_err(|e| crate::api::odata::odata_error_to_problem(&e, "/", None))?;
+            .map_err(|e| crate::api::odata::odata_error_to_problem(&e))?;
         query = query.with_order(order);
     }
 
@@ -224,8 +221,6 @@ where
         if limit == 0 {
             return Err(crate::api::odata::odata_error_to_problem(
                 &ODataError::InvalidLimit,
-                "/",
-                None,
             ));
         }
         query = query.with_limit(limit);

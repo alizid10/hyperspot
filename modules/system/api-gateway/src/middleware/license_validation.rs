@@ -1,12 +1,12 @@
 use axum::extract::Request;
-use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use dashmap::DashMap;
 use http::Method;
 use std::sync::Arc;
 
-use modkit::api::{OperationSpec, Problem};
+use modkit::api::OperationSpec;
+use modkit::api::problem::{ForbiddenV1, GtsError as _};
 
 const BASE_FEATURE: &str = "gts.x.core.lic.feat.v1~x.core.global.base.v1";
 
@@ -62,14 +62,12 @@ pub async fn license_validation_middleware(
     // We need first to implement plugin and get its client from client_hub
     // Plugin should provide an interface to get a list of global features (features that are not scoped to particular resource)
     if required.iter().any(|r| r != BASE_FEATURE) {
-        return Problem::new(
-            StatusCode::FORBIDDEN,
-            "Forbidden",
-            format!(
-                "Endpoint requires unsupported license features '{required:?}'; only '{BASE_FEATURE}' is allowed",
-            ),
-        )
-        .into_response();
+        tracing::warn!(
+            required = ?required,
+            "Endpoint requires unsupported license features; only '{}' is allowed",
+            BASE_FEATURE
+        );
+        return ForbiddenV1.into_problem().into_response();
     }
 
     next.run(req).await

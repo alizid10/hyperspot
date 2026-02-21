@@ -4,6 +4,9 @@
 pub mod module;
 pub use module::FileParserModule;
 
+// === ERROR CATALOG ===
+pub mod errors;
+
 // === INTERNAL MODULES ===
 // WARNING: These modules are internal implementation details!
 // They are exposed only for comprehensive testing and should NOT be used by external consumers.

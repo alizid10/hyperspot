@@ -1424,11 +1424,10 @@ where
         self
     }
 
-    /// Add 422 validation error response using `ValidationError` schema.
+    /// Add a 422 Unprocessable Entity (Validation Failed) error response.
     ///
-    /// This method adds a specific 422 Unprocessable Entity response that uses
-    /// the `ValidationError` schema instead of the generic Problem schema. Use this
-    /// for endpoints that perform input validation and need structured error details.
+    /// This is a convenience wrapper around `problem_response`.
+    /// Use this for endpoints that perform input validation.
     ///
     /// # Example
     ///
@@ -1460,18 +1459,12 @@ where
     /// let router = op.register(router, &registry);
     /// # let _ = router;
     /// ```
-    pub fn with_422_validation_error(mut self, registry: &dyn OpenApiRegistry) -> Self {
-        let validation_error_name =
-            ensure_schema::<crate::api::problem::ValidationErrorResponse>(registry);
-
-        self.spec.responses.push(ResponseSpec {
-            status: http::StatusCode::UNPROCESSABLE_ENTITY.as_u16(),
-            content_type: problem::APPLICATION_PROBLEM_JSON,
-            description: "Validation Error".to_owned(),
-            schema_name: Some(validation_error_name),
-        });
-
-        self
+    pub fn with_422_validation_error(self, registry: &dyn OpenApiRegistry) -> Self {
+        self.problem_response(
+            registry,
+            http::StatusCode::UNPROCESSABLE_ENTITY,
+            "Validation Failed",
+        )
     }
 
     /// Add a 400 Bad Request error response.
@@ -1969,7 +1962,7 @@ mod tests {
             .find(|r| r.status == 422)
             .expect("Should have 422 response");
 
-        assert_eq!(validation_response.description, "Validation Error");
+        assert_eq!(validation_response.description, "Validation Failed");
         assert_eq!(
             validation_response.content_type,
             crate::api::problem::APPLICATION_PROBLEM_JSON

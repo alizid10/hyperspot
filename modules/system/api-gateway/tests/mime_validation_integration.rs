@@ -172,8 +172,10 @@ async fn test_middleware_rejects_disallowed_content_type() {
     let problem = extract_problem(response).await;
     assert_eq!(problem.status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
     assert_eq!(problem.title, "Unsupported Media Type");
-    assert!(problem.detail.contains("text/plain"));
-    assert!(problem.detail.contains("application/json"));
+    let meta = problem.metadata.expect("should have metadata");
+    let msg = meta["message"].as_str().unwrap();
+    assert!(msg.contains("text/plain"));
+    assert!(msg.contains("application/json"));
 }
 
 #[tokio::test]
@@ -220,7 +222,9 @@ async fn test_middleware_rejects_missing_content_type() {
 
     let problem = extract_problem(response).await;
     assert_eq!(problem.status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
-    assert!(problem.detail.contains("Missing Content-Type"));
+    let meta = problem.metadata.expect("should have metadata");
+    let msg = meta["message"].as_str().unwrap();
+    assert!(msg.contains("Missing Content-Type"));
 }
 
 #[tokio::test]

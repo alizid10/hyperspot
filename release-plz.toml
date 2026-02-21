@@ -92,11 +92,6 @@ changelog_update = false
 git_release_enable = false
 
 [[package]]
-name = "cf-modkit-errors-macro"
-changelog_update = false
-git_release_enable = false
-
-[[package]]
 name = "cf-modkit-macros"
 changelog_update = false
 git_release_enable = false

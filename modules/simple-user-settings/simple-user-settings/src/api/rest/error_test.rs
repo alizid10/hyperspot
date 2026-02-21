@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use super::super::error::domain_error_to_problem;
     use crate::domain::error::DomainError;
     use axum::http::StatusCode;
     use modkit::api::problem::Problem;
@@ -8,11 +7,13 @@ mod tests {
     #[test]
     fn test_not_found_error_to_problem() {
         let error = DomainError::NotFound;
-        let problem = domain_error_to_problem(&error, "/test/instance");
+        let problem: Problem = error.into();
 
         assert_eq!(problem.status, StatusCode::NOT_FOUND);
-        assert_eq!(problem.instance, "/test/instance");
-        assert!(problem.detail.contains("Settings not found"));
+        // message is in metadata, populated from struct field
+        let meta = problem.metadata.expect("should have metadata");
+        let msg = meta["message"].as_str().unwrap();
+        assert!(msg.contains("Settings not found"));
     }
 
     #[test]
@@ -21,12 +22,13 @@ mod tests {
             field: "theme".to_owned(),
             message: "exceeds max length".to_owned(),
         };
-        let problem = domain_error_to_problem(&error, "/api/settings");
+        let problem: Problem = error.into();
 
         assert_eq!(problem.status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(problem.instance, "/api/settings");
-        assert!(problem.detail.contains("theme"));
-        assert!(problem.detail.contains("exceeds max length"));
+        let meta = problem.metadata.expect("should have metadata");
+        let msg = meta["message"].as_str().unwrap();
+        assert!(msg.contains("theme"));
+        assert!(msg.contains("exceeds max length"));
     }
 
     #[test]
@@ -34,20 +36,11 @@ mod tests {
         let error = DomainError::Database(modkit_db::DbError::InvalidConfig(
             "connection failed".to_owned(),
         ));
-        let problem = domain_error_to_problem(&error, "/db/error");
-
-        assert_eq!(problem.status, StatusCode::INTERNAL_SERVER_ERROR);
-        assert_eq!(problem.instance, "/db/error");
-        assert!(problem.detail.contains("internal database error"));
-    }
-
-    #[test]
-    fn test_from_domain_error_for_problem_not_found() {
-        let error = DomainError::NotFound;
         let problem: Problem = error.into();
 
-        assert_eq!(problem.status, StatusCode::NOT_FOUND);
-        assert_eq!(problem.instance, "/");
+        assert_eq!(problem.status, StatusCode::INTERNAL_SERVER_ERROR);
+        // Internal errors should NOT expose details in metadata
+        assert!(problem.metadata.is_none());
     }
 
     #[test]
@@ -59,14 +52,7 @@ mod tests {
         let problem: Problem = error.into();
 
         assert_eq!(problem.status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert!(problem.detail.contains("language"));
-    }
-
-    #[test]
-    fn test_from_domain_error_for_problem_database() {
-        let error = DomainError::Database(modkit_db::DbError::InvalidConfig("db error".to_owned()));
-        let problem: Problem = error.into();
-
-        assert_eq!(problem.status, StatusCode::INTERNAL_SERVER_ERROR);
+        let meta = problem.metadata.expect("should have metadata");
+        assert!(meta["message"].as_str().unwrap().contains("language"));
     }
 }

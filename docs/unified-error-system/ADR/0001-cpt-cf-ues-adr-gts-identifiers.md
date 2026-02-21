@@ -34,7 +34,7 @@ Chosen option: "GTS type URIs with 2-segment chain model", because it reuses the
 ### Consequences
 
 * Good, because error types are consistent with the GTS type system used elsewhere in CyberFabric
-* Good, because hierarchical namespacing (`cf.system.*`, `cf.types_registry.*`) prevents collisions between modules
+* Good, because hierarchical namespacing (`cf.core.errors.*`, `cf.types_registry.errors.*`) prevents collisions between modules
 * Good, because version suffix (`v1`, `v1.2`) supports non-breaking evolution of error schemas
 * Good, because each segment can define additional metadata fields (e.g., `retry_after` for rate limiting)
 * Bad, because GTS URIs are longer than simple string codes, increasing response payload size slightly
@@ -43,14 +43,14 @@ Chosen option: "GTS type URIs with 2-segment chain model", because it reuses the
 ### Confirmation
 
 * All error types in `modkit-errors` and module crates use GTS format
-* `#[gts_error]` macro validates GTS segment format at compile time
+* `#[struct_to_gts_schema]` macro validates GTS segment format at compile time
 * Types registry validates GTS ID uniqueness at registration
 
 ## Pros and Cons of the Options
 
 ### GTS type URIs with 2-segment chain model
 
-Full GTS type identifier using `gts://` prefix and `~`-separated segments. Example: `gts://gts.cf.core.errors.err.v1~cf.system.logical.not_found.v1~`.
+Full GTS type identifier using `gts://` prefix and `~`-separated segments. Example: `gts://gts.cf.core.errors.err.v1~cf.core.errors.not_found.v1~`.
 
 * Good, because reuses existing CyberFabric GTS conventions
 * Good, because hierarchical namespacing prevents collisions
@@ -95,7 +95,7 @@ Each module defines a Rust enum of error variants, serialized as strings.
 
 ## More Information
 
-The 2-segment chain model keeps all errors at exactly two levels: base schema + specific error. While more segments are possible in rare cases, the default is always 2 segments. The `base` field in `#[gts_error]` determines which GTS schema segment is prepended — it does not inherit `status`. Each error defines its own `status` explicitly.
+The 2-segment chain model keeps all errors at exactly two levels: base schema + specific error. While more segments are possible in rare cases, the default is always 2 segments. The `base` attribute in `#[struct_to_gts_schema]` determines which GTS schema segment is prepended — it does not inherit `status`. Each error defines its own `STATUS` explicitly via the `GtsError` trait implementation.
 
 ## Traceability
 

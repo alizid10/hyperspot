@@ -109,7 +109,7 @@ pub use modkit_odata::{Page, PageInfo};
 // HTTP utilities
 pub mod http;
 pub use api::problem::{
-    Problem, ValidationError, bad_request, conflict, internal_error, not_found,
+    Problem, ValidationFailedV1, bad_request, conflict, internal_error, not_found,
 };
 pub use http::sse::SseBroadcaster;
 
@@ -120,9 +120,6 @@ pub mod backends;
 pub mod lifecycle;
 pub mod plugins;
 pub mod runtime;
-
-// Error catalog runtime support
-pub mod errors;
 
 // Ergonomic result types
 pub mod result;

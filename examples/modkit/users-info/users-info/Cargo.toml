@@ -72,7 +72,9 @@ modkit-db-macros = { workspace = true }
 modkit-auth = { workspace = true }
 modkit-security = { workspace = true }
 modkit-errors = { workspace = true }
-modkit-errors-macro = { workspace = true }
+gts = { workspace = true }
+gts-macros = { workspace = true }
+schemars = { workspace = true }
 modkit-odata = { workspace = true, features = ["with-utoipa"] }
 modkit-sdk = { workspace = true }
 modkit-macros = { workspace = true }

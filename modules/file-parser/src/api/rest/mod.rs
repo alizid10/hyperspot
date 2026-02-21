@@ -5,6 +5,5 @@ mod mappers;
 pub mod routes;
 
 pub use dto::*;
-pub use error::*;
 pub use handlers::*;
 pub use routes::*;

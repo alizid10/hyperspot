@@ -35,7 +35,7 @@ Chosen option: "Security-first: remove `detail`, expose trace-id only, sanitized
 * Good, because eliminates the `detail` field — the most common source of sensitive data leakage in error responses
 * Good, because trace-id (32 hex chars) provides sufficient correlation without exposing internal call hierarchy (span-id) or sampling strategy (trace-flags)
 * Good, because `metadata` is populated from declared struct fields — auditable, type-safe, no dynamic injection
-* Good, because `#[gts_error(skip_metadata)]` allows internal fields to be excluded from responses while retained for logging
+* Good, because `#[serde(skip_serializing)]` allows internal fields to be excluded from responses while retained for logging
 * Bad, because deviates from RFC 9457 by omitting the `detail` field — API consumers expecting standard RFC 9457 may miss it
 * Bad, because reduced client-side debugging context — developers must use trace_id to look up full details in observability tools
 
@@ -44,18 +44,18 @@ Chosen option: "Security-first: remove `detail`, expose trace-id only, sanitized
 * Problem struct does not have a `detail` field — compile-time enforcement
 * Only `trace_id` (not full traceparent) appears in responses — validated by integration tests
 * Security scan confirms no credentials, PII, SQL errors, stack traces, or internal hostnames in error responses
-* `#[gts_error(skip_metadata)]` usage reviewed in code review for sensitive fields
+* `#[serde(skip_serializing)]` usage reviewed in code review for sensitive fields
 
 ## Pros and Cons of the Options
 
 ### Security-first: remove `detail`, expose trace-id only
 
-Remove RFC 9457 `detail` field entirely from the Problem struct. Expose only the trace-id portion (32 hex chars) of the W3C trace context, not the full traceparent. All metadata comes from declared struct fields with `skip_metadata` for internal-only fields.
+Remove RFC 9457 `detail` field entirely from the Problem struct. Expose only the trace-id portion (32 hex chars) of the W3C trace context, not the full traceparent. All metadata comes from declared struct fields with `#[serde(skip_serializing)]` for internal-only fields.
 
 * Good, because eliminates the primary vector for sensitive data leakage
 * Good, because trace-id provides correlation without exposing internal architecture
 * Good, because struct fields as metadata source is auditable and type-safe
-* Good, because `skip_metadata` gives explicit control over what reaches the client
+* Good, because `#[serde(skip_serializing)]` gives explicit control over what reaches the client
 * Bad, because non-standard RFC 9457 response (missing `detail`)
 * Bad, because less client-side context for debugging
 
@@ -101,7 +101,7 @@ Expose full details to internal consumers (service-to-service), sanitized detail
 This decision directly addresses the following requirements or design elements:
 
 * `cpt-cf-ues-nfr-no-sensitive-data` — Structural enforcement via no `detail` field and auditable metadata
-* `cpt-cf-ues-nfr-sanitized-metadata` — Metadata from struct fields only, with `skip_metadata` for internal data
+* `cpt-cf-ues-nfr-sanitized-metadata` — Metadata from struct fields only, with `#[serde(skip_serializing)]` for internal data
 * `cpt-cf-ues-nfr-server-side-logging` — Full details logged server-side, correlated via trace_id
 * `cpt-cf-ues-principle-security-first` — Security-first design principle for error responses
 * `cpt-cf-ues-constraint-no-detail` — Intentional omission of RFC 9457 `detail` field

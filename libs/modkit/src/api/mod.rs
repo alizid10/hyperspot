@@ -27,7 +27,7 @@ pub use operation_builder::{
     ResponseSpec, state,
 };
 pub use problem::{
-    APPLICATION_PROBLEM_JSON, Problem, ValidationError, bad_request, conflict, internal_error,
+    APPLICATION_PROBLEM_JSON, Problem, ValidationFailedV1, bad_request, conflict, internal_error,
     not_found,
 };
 pub use select::{apply_select, page_to_projected_json, project_json};

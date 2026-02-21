@@ -20,10 +20,10 @@ pub async fn handle_add(
     Extension(service): Extension<Arc<Service>>,
     Json(req): Json<AddRequest>,
 ) -> Result<Json<AddResponse>, Problem> {
-    let sum = service
-        .add(&ctx, req.a, req.b)
-        .await
-        .map_err(|e| internal_error(format!("Addition failed: {}", e)))?;
+    let sum = service.add(&ctx, req.a, req.b).await.map_err(|e| {
+        tracing::error!(error = %e, "Addition failed");
+        internal_error()
+    })?;
 
     Ok(Json(AddResponse { sum }))
 }

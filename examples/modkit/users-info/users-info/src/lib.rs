@@ -74,7 +74,7 @@ pub use users_info_sdk::{
 };
 
 // === ERROR CATALOG ===
-// Generated error catalog from gts/errors.json
+// GtsError + struct_to_gts_schema error definitions
 pub mod errors;
 
 // === MODULE DEFINITION ===

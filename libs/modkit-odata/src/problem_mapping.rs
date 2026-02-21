@@ -5,7 +5,8 @@
 //! instance paths and trace IDs before the Problem is converted to an HTTP response.
 
 use crate::Error;
-use crate::errors::ErrorCode;
+use crate::errors::{InternalODataErrorV1, InvalidCursorV1, InvalidFilterV1, InvalidOrderByV1};
+use modkit_errors::GtsError as _;
 use modkit_errors::problem::Problem;
 
 impl From<Error> for Problem {
@@ -19,12 +20,16 @@ impl From<Error> for Problem {
 
         match err {
             // Filter parsing errors → 422
-            InvalidFilter(msg) => ErrorCode::odata_errors_invalid_filter_v1()
-                .as_problem(format!("Invalid $filter: {msg}")),
+            InvalidFilter(msg) => InvalidFilterV1 {
+                message: format!("Invalid $filter: {msg}"),
+            }
+            .into_problem(),
 
             // OrderBy parsing and validation errors → 422
-            InvalidOrderByField(field) => ErrorCode::odata_errors_invalid_orderby_v1()
-                .as_problem(format!("Unsupported $orderby field: {field}")),
+            InvalidOrderByField(field) => InvalidOrderByV1 {
+                message: format!("Unsupported $orderby field: {field}"),
+            }
+            .into_problem(),
 
             // All cursor-related errors → 422
             InvalidCursor
@@ -33,34 +38,37 @@ impl From<Error> for Problem {
             | CursorInvalidVersion
             | CursorInvalidKeys
             | CursorInvalidFields
-            | CursorInvalidDirection => {
-                ErrorCode::odata_errors_invalid_cursor_v1().as_problem(err.to_string())
+            | CursorInvalidDirection => InvalidCursorV1 {
+                message: err.to_string(),
             }
+            .into_problem(),
 
             // Pagination validation errors → 422
-            OrderMismatch => ErrorCode::odata_errors_invalid_orderby_v1()
-                .as_problem("Order mismatch between cursor and query"),
-
-            FilterMismatch => ErrorCode::odata_errors_invalid_filter_v1()
-                .as_problem("Filter mismatch between cursor and query"),
-
-            InvalidLimit => {
-                ErrorCode::odata_errors_invalid_filter_v1().as_problem("Invalid limit parameter")
+            OrderMismatch => InvalidOrderByV1 {
+                message: "Order mismatch between cursor and query".into(),
             }
+            .into_problem(),
 
-            OrderWithCursor => ErrorCode::odata_errors_invalid_cursor_v1()
-                .as_problem("Cannot specify both $orderby and cursor parameters"),
+            FilterMismatch => InvalidFilterV1 {
+                message: "Filter mismatch between cursor and query".into(),
+            }
+            .into_problem(),
+
+            InvalidLimit => InvalidFilterV1 {
+                message: "Invalid limit parameter".into(),
+            }
+            .into_problem(),
+
+            OrderWithCursor => InvalidCursorV1 {
+                message: "Cannot specify both $orderby and cursor parameters".into(),
+            }
+            .into_problem(),
 
             // Database errors → 500 (should be caught earlier)
-            Db(_msg) => {
-                // Use filter error as safe default for unexpected DB errors
-                ErrorCode::odata_errors_internal_v1()
-                    .as_problem("An internal error occurred while processing the OData query")
-            }
+            Db(_msg) => InternalODataErrorV1 {}.into_problem(),
 
             // Configuration errors → 500 (feature not enabled)
-            ParsingUnavailable(msg) => ErrorCode::odata_errors_internal_v1()
-                .as_problem(format!("OData parsing unavailable: {msg}")),
+            ParsingUnavailable(_msg) => InternalODataErrorV1 {}.into_problem(),
         }
     }
 }
@@ -79,9 +87,8 @@ mod tests {
 
         assert_eq!(problem.status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(problem.title, "Invalid Filter");
-        assert!(problem.detail.contains("malformed"));
-        assert!(problem.code.contains("odata"));
-        assert!(problem.code.contains("invalid_filter"));
+        assert!(problem.type_url.contains("odata"));
+        assert!(problem.type_url.contains("invalid_filter"));
     }
 
     #[test]
@@ -93,8 +100,8 @@ mod tests {
 
         assert_eq!(problem.status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(problem.title, "Invalid OrderBy");
-        assert!(problem.code.contains("odata"));
-        assert!(problem.code.contains("invalid_orderby"));
+        assert!(problem.type_url.contains("odata"));
+        assert!(problem.type_url.contains("invalid_orderby"));
     }
 
     #[test]
@@ -106,7 +113,7 @@ mod tests {
 
         assert_eq!(problem.status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(problem.title, "Invalid Cursor");
-        assert!(problem.code.contains("odata"));
-        assert!(problem.code.contains("invalid_cursor"));
+        assert!(problem.type_url.contains("odata"));
+        assert!(problem.type_url.contains("invalid_cursor"));
     }
 }

@@ -24,7 +24,9 @@ chrono = []
 
 [dependencies]
 modkit-errors = { workspace = true }
-modkit-errors-macro = { workspace = true }
+gts = { workspace = true }
+gts-macros = { workspace = true }
+schemars = { workspace = true }
 bigdecimal = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true, default-features = false, features = ["clock"] }

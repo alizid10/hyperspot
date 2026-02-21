@@ -25,6 +25,9 @@ pub use nodes_registry_sdk::{
 pub mod module;
 pub use module::NodesRegistry;
 
+// === ERROR CATALOG ===
+pub mod errors;
+
 // === INTERNAL MODULES ===
 #[doc(hidden)]
 pub mod api;

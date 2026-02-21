@@ -46,7 +46,9 @@ modkit-auth = { workspace = true }
 modkit-db = { workspace = true }
 modkit-db-macros = { workspace = true }
 modkit-errors = { workspace = true }
-modkit-errors-macro = { workspace = true }
+gts = { workspace = true }
+gts-macros = { workspace = true }
+schemars = { workspace = true }
 modkit-security = { workspace = true }
 modkit-macros = { workspace = true }
 

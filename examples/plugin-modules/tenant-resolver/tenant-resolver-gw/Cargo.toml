@@ -41,3 +41,7 @@ arc-swap = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 
 thiserror = { workspace = true }
+modkit-errors = { workspace = true }
+gts-macros = { workspace = true }
+gts = { workspace = true }
+schemars = { workspace = true }

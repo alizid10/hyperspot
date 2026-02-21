@@ -26,7 +26,7 @@ The system adopts RFC 9457 (Problem Details for HTTP APIs) as the wire format an
 |------|------------|
 | GTS | Global Type System — a hierarchical type identification scheme using dot-separated segments |
 | Problem | The standardized error response struct conforming to RFC 9457 |
-| GTS type chain | A multi-segment GTS identifier where each segment can introduce additional fields (e.g., `gts.cf.core.errors.err.v1~cf.system.logical.not_found.v1~`) |
+| GTS type chain | A multi-segment GTS identifier where each segment can introduce additional fields (e.g., `gts.cf.core.errors.err.v1~cf.core.errors.not_found.v1~`) |
 | Base error schema | The root GTS segment (`gts.cf.core.errors.err.v1~`) that anchors all error type chains |
 | Error registration | The process of declaring error types in the types registry at module startup |
 | Trace ID | A 32-character hex string (W3C trace-id portion) used for request correlation across services |
@@ -39,7 +39,7 @@ The system adopts RFC 9457 (Problem Details for HTTP APIs) as the wire format an
 
 **ID**: `cpt-cf-ues-actor-module-dev`
 
-**Role**: Rust developer who defines error types within CyberFabric modules using the `#[gts_error]` macro and maps domain errors to Problem responses.
+**Role**: Rust developer who defines error types within CyberFabric modules using the `GtsError` trait and `#[struct_to_gts_schema]` macro, and maps domain errors to Problem responses.
 **Needs**: Compile-time validation of error definitions, simple conversion from domain errors to API responses, clear rules for GTS ID format and metadata fields.
 
 ### 2.2 System Actors
@@ -73,10 +73,10 @@ The system adopts RFC 9457 (Problem Details for HTTP APIs) as the wire format an
 - Standardized error response schema for all REST API endpoints (RFC 9457 compliant)
 - GTS type identifier format and 2-segment chain model for error classification
 - Compile-time error definition mechanism via proc macro
-- Automatic trace ID population from OpenTelemetry span context
+- Automatic trace ID population from tracing span context
 - Error type registration in the types registry at module startup
 - HTTP response headers for error responses (`X-Trace-Id`, `X-Error-Code`, `Content-Type`, `Retry-After`)
-- Platform-level (system) error catalog: transport, runtime, HTTP, gRPC, logical
+- Platform-level error catalog: bad_request, forbidden, not_found, conflict, unsupported_media_type, validation_failed, internal, config, unknown
 - Module-level error definition conventions
 
 ### 4.2 Out of Scope
@@ -153,7 +153,7 @@ The system **MUST** provide a compile-time mechanism for defining error types th
 
 - [ ] `p2` - **ID**: `cpt-cf-ues-fr-ergonomic-api`
 
-The system **MUST** generate short, ergonomic accessor constants (e.g., `Errors::TYPES_REGISTRY_NOT_FOUND`) from error definitions so that callers do not need to construct full GTS strings at call sites. Developer experience at the call site **SHOULD** be comparable to the existing `declare_errors!` macro.
+The system **MUST** provide ergonomic error struct constructors and `into_problem()` conversion so that callers do not need to construct full GTS strings at call sites. Error structs are constructed directly (e.g., `NotFoundV1 { message: "...".into() }.into_problem()`).
 
 **Rationale**: Long GTS URIs are not practical for use in match arms and error construction; short identifiers improve readability and reduce errors.
 **Actors**: `cpt-cf-ues-actor-module-dev`
@@ -173,7 +173,7 @@ Error metadata **MUST** be populated exclusively through struct fields declared 
 
 - [ ] `p1` - **ID**: `cpt-cf-ues-fr-system-errors`
 
-The system **MUST** provide a pre-defined catalog of platform-level errors covering transport, runtime, HTTP, gRPC, and logical error categories with standardized GTS types, HTTP statuses, and titles.
+The system **MUST** provide a pre-defined catalog of platform-level errors covering common HTTP error categories (bad_request, forbidden, not_found, conflict, unsupported_media_type, validation_failed, internal, config, unknown) with standardized GTS types, HTTP statuses, and titles.
 
 **Rationale**: Common platform errors (not found, unauthorized, timeout, etc.) should be reusable across all modules without redefinition.
 **Actors**: `cpt-cf-ues-actor-module-dev`
@@ -228,9 +228,7 @@ Full error details (error chains, stack traces, internal state) **MUST** be logg
 
 ### 6.3 Compatibility Requirements
 
-- Co-existence: During migration, modules using the previous error format (`declare_errors!`) and modules using the unified `#[gts_error]` system **MUST** be able to coexist in the same CyberFabric deployment. API consumers may receive both old-format and new-format error responses until migration is complete.
 - Backward compatibility: New metadata fields **MAY** be added to error responses without breaking existing API consumers. Field removal or semantic changes to the `type` URI **MUST** require a major version bump.
-- Migration: Adoption is module-by-module. No big-bang migration required.
 
 ## 7. Public Library Interfaces
 
@@ -245,22 +243,22 @@ Full error details (error chains, stack traces, internal state) **MUST** be logg
 **Description**: The standardized error response type with fields `type`, `title`, `status`, `trace_id`, and `metadata`. Serializes to RFC 9457 compliant JSON.
 **Breaking Change Policy**: Major version bump required for field additions/removals.
 
-#### `#[gts_error]` Attribute Macro
+#### `GtsError` Trait + `#[struct_to_gts_schema]` Macro
 
 - [ ] `p1` - **ID**: `cpt-cf-ues-interface-gts-error-macro`
 
-**Type**: Rust proc macro attribute
+**Type**: Rust trait (`GtsError`) + proc macro attribute (`#[struct_to_gts_schema]` from `gts-macros` crate)
 **Stability**: stable
-**Description**: Compile-time error definition macro that generates GTS constants, `into_problem()` conversion, and `Display`/`Error` trait implementations from annotated structs.
-**Breaking Change Policy**: Major version bump required for attribute syntax changes.
+**Description**: `GtsError` trait defines the error interface (`STATUS`, `TITLE`, `into_problem()`). `#[struct_to_gts_schema]` generates `GtsSchema` implementation and schema ID constants. Together they provide compile-time error definition with RFC 9457 serialization.
+**Breaking Change Policy**: Major version bump required for trait or attribute syntax changes.
 
-#### `trace_id_from_current_span()`
+#### `finalize()` Helper
 
 - [ ] `p2` - **ID**: `cpt-cf-ues-interface-trace-id-fn`
 
 **Type**: Rust public function
 **Stability**: stable
-**Description**: Extracts the W3C trace-id (32 hex chars) from the current OpenTelemetry span context. Returns `None` if no active span or invalid trace-id.
+**Description**: `finalize(problem, trace_id)` — convenience function for attaching an optional trace_id to a Problem. The `Problem::IntoResponse` axum integration automatically enriches trace_id from the current tracing span if not already set.
 **Breaking Change Policy**: Major version bump required for signature changes.
 
 ### 7.2 External Integration Contracts
@@ -294,10 +292,10 @@ Full error details (error chains, stack traces, internal state) **MUST** be logg
 - Module has domain-specific error conditions to expose via API
 
 **Main Flow**:
-1. Developer defines an error struct with `#[gts_error]` attribute specifying GTS type, base, status, and title
-2. Macro generates constants (`GTS_ID`, `STATUS`, `TITLE`, `ERROR_DEF`), `into_problem()`, `Display`, and `Error` implementations at compile time
-3. Developer maps domain errors to the struct in a `to_problem()` method
-4. Developer registers error definitions in the module's `on_ready` lifecycle hook
+1. Developer defines a metadata struct with `#[struct_to_gts_schema]` specifying `schema_id` and `base = BaseErrorV1`
+2. Developer implements `GtsError` for the metadata struct specifying `STATUS` and `TITLE`
+3. Macro generates `GtsSchema` implementation with schema ID constants; trait provides `into_problem()` for RFC 9457 serialization
+4. Developer maps domain errors to the struct and registers error definitions in the module's `on_ready` lifecycle hook
 
 **Postconditions**:
 - Error type is available for use in API handlers
@@ -343,16 +341,16 @@ Full error details (error chains, stack traces, internal state) **MUST** be logg
 | Dependency | Description | Criticality |
 |------------|-------------|-------------|
 | Types Registry module | Stores and serves registered error type definitions | p1 |
-| OpenTelemetry / tracing | Provides trace context for trace ID extraction | p1 |
+| `tracing` crate | Provides span context for trace ID extraction (`Span::current().id()`) | p1 |
 | `http` crate | Type-safe HTTP status codes (`StatusCode`) | p1 |
 | `serde` / `serde_json` | JSON serialization of Problem responses | p1 |
 
 ## 11. Assumptions
 
 - All CyberFabric modules use the modkit framework and have access to the `on_ready` lifecycle hook for error registration
-- OpenTelemetry tracing is configured in the HTTP middleware layer, providing valid trace context for error responses
+- Tracing is configured in the HTTP middleware layer, providing valid span context for trace ID extraction in error responses
 - The types registry module may be temporarily unavailable at startup; registration is best-effort and non-blocking (see `cpt-cf-ues-fr-error-registration`)
-- Error versioning policy is deferred for MVP: error `code` fields remain stable for the same semantic meaning; version bumps occur only on breaking semantic changes (status code or handling behavior changes). Minor metadata changes (title wording, docs) do not require version bumps
+- Error versioning policy is deferred for MVP: GTS type URIs remain stable for the same semantic meaning; version bumps occur only on breaking semantic changes (status code or handling behavior changes). Minor metadata changes (title wording, docs) do not require version bumps
 
 ## 12. Risks
 

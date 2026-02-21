@@ -7,6 +7,9 @@ pub use tenant_resolver_example_sdk as contract;
 pub mod module;
 pub use module::TenantResolverGateway;
 
+// === ERROR CATALOG ===
+pub mod errors;
+
 // === INTERNAL ===
 #[doc(hidden)]
 pub mod api;

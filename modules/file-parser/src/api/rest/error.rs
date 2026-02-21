@@ -1,56 +1,32 @@
-use http::StatusCode;
-use modkit::api::problem::Problem;
+use modkit::api::problem::{GtsError as _, Problem};
 
 use crate::domain::error::DomainError;
+use crate::errors::{
+    DownloadErrorV1, FileNotFoundV1, InvalidRequestV1, InvalidUrlV1, IoErrorV1,
+    NoParserAvailableV1, ParseErrorV1, UnsupportedFileTypeV1,
+};
 
-/// Convert domain errors to HTTP Problem responses
-pub fn domain_error_to_problem(err: DomainError) -> Problem {
-    match err {
-        DomainError::FileNotFound { path } => Problem::new(
-            StatusCode::NOT_FOUND,
-            "File Not Found",
-            format!("File not found: {path}"),
-        ),
-
-        DomainError::UnsupportedFileType { extension } => Problem::new(
-            StatusCode::BAD_REQUEST,
-            "Unsupported File Type",
-            format!("Unsupported file type: {extension}"),
-        ),
-
-        DomainError::NoParserAvailable { extension } => Problem::new(
-            StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            "No Parser Available",
-            format!("No parser available for extension: {extension}"),
-        ),
-
-        DomainError::ParseError { message } => {
-            Problem::new(StatusCode::UNPROCESSABLE_ENTITY, "Parse Error", message)
-        }
-
-        DomainError::IoError { message } => {
-            Problem::new(StatusCode::INTERNAL_SERVER_ERROR, "IO Error", message)
-        }
-
-        DomainError::InvalidUrl { url } => Problem::new(
-            StatusCode::BAD_REQUEST,
-            "Invalid URL",
-            format!("Invalid URL: {url}"),
-        ),
-
-        DomainError::DownloadError { message } => {
-            Problem::new(StatusCode::BAD_GATEWAY, "Download Error", message)
-        }
-
-        DomainError::InvalidRequest { message } => {
-            Problem::new(StatusCode::BAD_REQUEST, "Invalid Request", message)
-        }
-    }
-}
-
-/// Implement Into<Problem> for `DomainError` so `?` works in handlers
 impl From<DomainError> for Problem {
     fn from(e: DomainError) -> Self {
-        domain_error_to_problem(e)
+        match e {
+            DomainError::FileNotFound { path } => FileNotFoundV1 { path }.into_problem(),
+            DomainError::UnsupportedFileType { extension } => {
+                UnsupportedFileTypeV1 { extension }.into_problem()
+            }
+            DomainError::NoParserAvailable { extension } => {
+                NoParserAvailableV1 { extension }.into_problem()
+            }
+            DomainError::ParseError { message } => ParseErrorV1 { message }.into_problem(),
+            DomainError::IoError { message } => {
+                tracing::error!(error = %message, "IO error in file parser");
+                IoErrorV1.into_problem()
+            }
+            DomainError::InvalidUrl { url } => InvalidUrlV1 { url }.into_problem(),
+            DomainError::DownloadError { message } => {
+                tracing::error!(error = %message, "Download error in file parser");
+                DownloadErrorV1.into_problem()
+            }
+            DomainError::InvalidRequest { message } => InvalidRequestV1 { message }.into_problem(),
+        }
     }
 }

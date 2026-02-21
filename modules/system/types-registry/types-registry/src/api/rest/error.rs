@@ -1,89 +1,49 @@
 //! REST error mapping for the Types Registry module.
 
-use modkit::api::prelude::StatusCode;
-use modkit::api::problem::Problem;
+use modkit::api::problem::{GtsError as _, Problem};
 
 use crate::domain::error::DomainError;
+use crate::errors::{
+    InvalidGtsIdV1, TypeActivationFailedV1, TypeEntityAlreadyExistsV1, TypeEntityNotFoundV1,
+    TypeInternalV1, TypeNotReadyV1, TypeValidationFailedV1,
+};
 
 impl From<DomainError> for Problem {
     fn from(e: DomainError) -> Self {
-        let trace_id = tracing::Span::current()
-            .id()
-            .map(|id| id.into_u64().to_string());
-
-        let (status, code, title, detail) = match &e {
-            DomainError::InvalidGtsId(msg) => (
-                StatusCode::BAD_REQUEST,
-                "TYPES_REGISTRY_INVALID_GTS_ID",
-                "Invalid GTS ID",
-                msg.clone(),
-            ),
-            DomainError::NotFound(id) => (
-                StatusCode::NOT_FOUND,
-                "TYPES_REGISTRY_NOT_FOUND",
-                "Entity not found",
-                format!("No entity with GTS ID: {id}"),
-            ),
-            DomainError::AlreadyExists(id) => (
-                StatusCode::CONFLICT,
-                "TYPES_REGISTRY_ALREADY_EXISTS",
-                "Entity already exists",
-                format!("Entity with GTS ID already exists: {id}"),
-            ),
-            DomainError::ValidationFailed(msg) => (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                "TYPES_REGISTRY_VALIDATION_FAILED",
-                "Validation failed",
-                msg.clone(),
-            ),
-            DomainError::NotInReadyMode => (
-                StatusCode::SERVICE_UNAVAILABLE,
-                "TYPES_REGISTRY_NOT_READY",
-                "Service not ready",
-                "The types registry is not yet ready".to_owned(),
-            ),
+        match e {
+            DomainError::InvalidGtsId(msg) => InvalidGtsIdV1 { message: msg }.into_problem(),
+            DomainError::NotFound(id) => TypeEntityNotFoundV1 { gts_id: id }.into_problem(),
+            DomainError::AlreadyExists(id) => {
+                TypeEntityAlreadyExistsV1 { gts_id: id }.into_problem()
+            }
+            DomainError::ValidationFailed(msg) => {
+                TypeValidationFailedV1 { message: msg }.into_problem()
+            }
+            DomainError::NotInReadyMode => TypeNotReadyV1 {}.into_problem(),
             DomainError::ReadyCommitFailed(errors) => {
-                let error_strings: Vec<String> = errors
-                    .iter()
-                    .map(std::string::ToString::to_string)
-                    .collect();
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "TYPES_REGISTRY_ACTIVATION_FAILED",
-                    "Registry activation failed",
-                    format!(
-                        "Failed to activate registry: {} validation errors: {}",
-                        errors.len(),
-                        error_strings.join("; ")
-                    ),
-                )
+                let error_strings: Vec<String> = errors.iter().map(ToString::to_string).collect();
+                tracing::error!(
+                    error_count = errors.len(),
+                    "Registry activation failed: {}",
+                    error_strings.join("; ")
+                );
+                TypeActivationFailedV1 {
+                    error_count: errors.len(),
+                }
+                .into_problem()
             }
             DomainError::Internal(e) => {
                 tracing::error!(error = ?e, "Internal error in types_registry");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "TYPES_REGISTRY_INTERNAL",
-                    "Internal Server Error",
-                    "An internal error occurred".to_owned(),
-                )
+                TypeInternalV1 {}.into_problem()
             }
-        };
-
-        let mut problem = Problem::new(status, title, detail)
-            .with_type(format!("https://errors.hyperspot.com/{code}"))
-            .with_code(code);
-
-        if let Some(id) = trace_id {
-            problem = problem.with_trace_id(id);
         }
-
-        problem
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use modkit::api::prelude::StatusCode;
 
     #[test]
     fn test_domain_error_to_problem_not_found() {
