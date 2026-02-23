@@ -2538,11 +2538,21 @@ For any outcome where the server applies a quota debit (actual or estimated), th
 - Outbox uniqueness key remains `(turn_id, request_id)`.
 - Consumer deduplication remains by `(tenant_id, turn_id, request_id)`.
 
-#### Finalization mutual exclusion invariant
+#### FinalizeTurn Invariant
+
+**This is the single universal finalization algorithm. Every terminal path MUST use it. No exceptions.**
 
 Exactly one finalizer may transition a turn from `IN_PROGRESS` (`running`) to a terminal billing state (`COMPLETED`/`FAILED`/`ABORTED`). This MUST be enforced at the database level using a single conditional update (CAS guard), not in-memory locks.
 
-Every finalization path — normal completion (`done`), terminal provider error, client disconnect abort, and orphan watchdog timeout — MUST execute the same guarded update pattern:
+**Covered terminal triggers** (exhaustive list — every trigger below MUST use the identical CAS pattern):
+
+1. **Provider done** — normal `response.completed` terminal event
+2. **Provider terminal error** — `provider_error`, `provider_timeout`, or any other terminal error from the provider
+3. **Client disconnect** — SSE stream closes before provider completes → abort path
+4. **Watchdog/orphan timeout** — turn remains `running` beyond the configured threshold (default: 5 minutes)
+5. **Internal abort** — any server-initiated cancellation (e.g., pod shutdown, deployment drain)
+
+Every trigger above MUST execute the same guarded update:
 
 ```sql
 UPDATE chat_turns
@@ -2552,14 +2562,28 @@ WHERE id = :turn_id AND state = 'running'
 
 (`state = 'running'` is the DB-level equivalent of `billing_state = IN_PROGRESS`; see billing state mapping in section 5.4.)
 
-The finalizer MUST check `rows_affected` from this update:
+**CAS winner responsibilities** — the finalizer MUST check `rows_affected`:
 
-- **`rows_affected = 1`**: this finalizer won the CAS race. Proceed with quota settlement and `usage_outbox` insertion within the same transaction.
-- **`rows_affected = 0`**: another finalizer already transitioned the turn. This finalizer MUST treat the turn as already finalized, MUST NOT debit quota, and MUST NOT emit an outbox event. It MUST be a silent no-op.
+- **`rows_affected = 1`**: this finalizer won the CAS race. It is the ONLY actor allowed to:
+  (a) settle quota (release unused reserve or commit actual/estimated usage),
+  (b) insert the `usage_outbox` row, and
+  (c) persist the final assistant message content (if the outcome is `completed`).
+  All three operations — CAS state transition, quota settlement, and outbox insert — MUST be within one DB transaction.
+- **`rows_affected = 0`**: another finalizer already transitioned the turn. This finalizer MUST treat the turn as already finalized, MUST NOT debit quota, MUST NOT emit an outbox event, and MUST stop processing. It is an idempotent no-op.
 
 No finalization path is exempt from this guard. The orphan watchdog uses the identical CAS pattern (`WHERE state = 'running'`) and cannot "finalize late" if the stream already completed or was already finalized by another path.
 
+#### Forbidden Patterns
+
+The following patterns are explicitly prohibited. Any implementation that matches these patterns is a correctness violation:
+
+1. **"Update messages first, update turn state later"** — FORBIDDEN. The assistant message persistence and the turn state transition MUST be ordered such that a `completed` state is never observable without the corresponding durable message content.
+2. **"Outbox insert outside the finalization transaction"** — FORBIDDEN. The outbox row MUST be inserted within the same DB transaction as the CAS state transition and quota settlement. A separate transaction risks duplicate or orphaned billing events.
+3. **"Watchdog finalizes without checking running state"** — FORBIDDEN. The watchdog MUST use the identical `WHERE state = 'running'` CAS guard. A watchdog that unconditionally overwrites terminal states corrupts already-settled turns.
+
 #### Content durability invariant (completed ⇒ replayable)
+
+**INVARIANT: `completed` ⟹ full assistant content is durably persisted in the same or preceding committed transaction.**
 
 A turn MUST NOT transition to `completed` unless the full assistant message content has been durably persisted in the database (i.e. the `messages` row with `role = 'assistant'` and the complete response text exists and is committed). This is the invariant that guarantees idempotent replay: a `completed` turn always has stored content to serve.
 

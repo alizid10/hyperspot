@@ -1049,7 +1049,7 @@
       "TurnStatus": {
         "type": "object",
         "required": ["chat_id", "request_id", "state", "updated_at"],
-        "description": "Authoritative server-side turn state. Internal-to-API state mapping: running->running, completed->done, failed->error, cancelled->cancelled. All terminal states (done, error, cancelled) indicate that quota settlement has been finalized. A state of 'done' guarantees that the full assistant message content is durably persisted and available for idempotent replay.",
+        "description": "Authoritative server-side turn state. Internal-to-API state mapping: running->running, completed->done, failed->error, cancelled->cancelled. Terminal states (done, error, cancelled) are immutable — once reached, the state never changes. Exactly one terminal outcome exists per (chat_id, request_id) pair. All terminal states indicate that quota settlement has been finalized atomically with the state transition. A state of 'done' guarantees that the full assistant message content is durably persisted and available for idempotent replay.",
         "properties": {
           "chat_id": {
             "type": "string",
