@@ -763,7 +763,7 @@ Support and UX recovery flows SHOULD be able to query authoritative turn state b
 | `provider_error` | 502 | LLM provider returned an error |
 | `provider_timeout` | 504 | LLM provider request timed out |
 
-Provider identifiers (`provider_file_id`, `vector_store_id`, etc.) are internal-only and MUST NOT be exposed in any API response, SSE event, or error message. All client-visible file references use internal identifiers (`attachment_id`) only.
+Provider identifiers (`provider_file_id`, `provider_response_id`, `vector_store_id`, and any other provider-issued ID) are internal-only and MUST NOT be exposed in any API response, SSE event payload, or error message. All client-visible identifiers are internal UUIDs only (`chat_id`, `turn_id`, `request_id`, `attachment_id`, `message_id`).
 
 ## 8. Use Cases
 

@@ -1286,8 +1286,8 @@
       },
       "SseDoneEvent": {
         "type": "object",
-        "required": ["message_id", "usage", "effective_model", "selected_model", "provider", "quota_decision"],
-        "description": "SSE `event: done` payload. Terminal event finalizing the stream with usage, model selection, and correlation metadata.",
+        "required": ["message_id", "usage", "effective_model", "selected_model", "quota_decision"],
+        "description": "SSE `event: done` payload. Terminal event finalizing the stream with usage and model selection metadata.",
         "properties": {
           "message_id": {
             "type": "string",
@@ -1318,9 +1318,6 @@
             "type": "string",
             "enum": ["premium_quota_exhausted", "kill_switch"],
             "description": "Why downgrade occurred. Present only when quota_decision=\"downgrade\"."
-          },
-          "provider": {
-            "$ref": "#/components/schemas/SseProvider"
           }
         }
       },
@@ -1340,21 +1337,6 @@
           "model": {
             "type": "string",
             "description": "Effective model used for generation. May differ from the chat's locked model if a quota-driven downgrade occurred; see quota_decision on the done event."
-          }
-        }
-      },
-      "SseProvider": {
-        "type": "object",
-        "required": ["name", "response_id"],
-        "description": "Provider correlation metadata.",
-        "properties": {
-          "name": {
-            "type": "string",
-            "enum": ["openai", "azure_openai"]
-          },
-          "response_id": {
-            "type": "string",
-            "description": "Provider-assigned response correlation ID."
           }
         }
       },

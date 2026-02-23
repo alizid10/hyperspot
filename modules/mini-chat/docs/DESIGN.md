@@ -547,13 +547,13 @@ data: {"items": [{"source": "file", "title": "Q3 Report.pdf", "attachment_id": "
 | `items[].snippet` | string | Relevant excerpt. |
 | `items[].score` | number (optional) | Relevance score (0-1). |
 
-**Provider identifier security invariant**: the public API MUST NOT expose provider identifiers (`provider_file_id`, `vector_store_id`, or any provider-issued ID) to clients. All client-visible file references use internal `attachment_id` (UUID) only. Provider identifiers are stored internally for LLM operations and MUST NOT appear in any API response, SSE event payload, or error message.
+**Provider identifier non-exposure invariant**: no provider-issued identifier — including `provider_file_id`, `provider_response_id`, `vector_store_id`, provider correlation IDs, or any other provider-scoped ID — MUST appear in any API response body, SSE event payload, or error message. Internal systems (DB columns, structured logs, audit events, operator tooling) may store and reference these identifiers, but they MUST NOT be returned to public clients. All client-visible identifiers are internal UUIDs only (`chat_id`, `turn_id`, `request_id`, `attachment_id`, `message_id`).
 
 P1: `citations` is sent once near stream completion, before `done`. The contract supports multiple `citations` events per stream for future use. When web search contributes to the response, citations with `source: "web"` include `url`, `title`, and `snippet`.
 
 ##### `event: done`
 
-Finalizes the stream. Provides usage, model selection, and provider correlation metadata.
+Finalizes the stream. Provides usage and model selection metadata.
 
 ```json
 {
@@ -567,11 +567,7 @@ Finalizes the stream. Provides usage, model selection, and provider correlation 
   "selected_model": "gpt-5.2-premium",
   "quota_decision": "downgrade",
   "downgrade_from": "gpt-5.2-premium",
-  "downgrade_reason": "premium_quota_exhausted",
-  "provider": {
-    "name": "openai",
-    "response_id": "resp_abc123"
-  }
+  "downgrade_reason": "premium_quota_exhausted"
 }
 ```
 
@@ -586,8 +582,6 @@ Finalizes the stream. Provides usage, model selection, and provider correlation 
 | `quota_decision` | `"allow"` \| `"downgrade"` (required) | Always present. `"allow"` when the turn used the selected model without override; `"downgrade"` when a quota-driven downgrade occurred. |
 | `downgrade_from` | string (optional) | Always equals `selected_model` when present — the model from which the quota-driven downgrade occurred. Present only when `quota_decision="downgrade"`. |
 | `downgrade_reason` | string (optional) | Why downgrade occurred: `"premium_quota_exhausted"` or `"kill_switch"`. Present only when `quota_decision="downgrade"`. |
-| `provider.name` | `"openai"` \| `"azure_openai"` | Active provider. |
-| `provider.response_id` | string | Provider-side response ID for debugging and OAGW log correlation. |
 | `quota_warnings` | array of objects (optional) | Deferred to P2+. Not emitted in P1. |
 
 ##### `event: error`
@@ -639,7 +633,7 @@ Provider-specific streaming events are internal to `llm_provider` and the domain
 | `response.web_search_call.completed` | `event: tool` (`phase: "done"`, `name: "web_search"`) | `details` populated from search results metadata. |
 | Web search annotations in response | `event: citations` | Extracted from provider annotations, mapped to `items[]` with `source: "web"`, `url`, `title`, `snippet`. |
 | File search annotations in response | `event: citations` | Extracted from provider annotations, mapped to `items[]` schema. When provider annotations include ranges, `items[].span` SHOULD be populated as character offsets into the final assistant text. |
-| `response.completed` | `event: done` | `usage` from `response.usage`; `provider.response_id` from `response.id`. |
+| `response.completed` | `event: done` | `usage` from `response.usage`. Provider `response.id` is persisted internally (`chat_turns.provider_response_id`) but MUST NOT be included in the SSE payload. |
 | Provider HTTP error / disconnect | `event: error` (`code: "provider_error"` or `"provider_timeout"`) | Error details sanitized; provider internals not exposed. |
 | Provider 429 | `event: error` (`code: "rate_limited"`) | After OAGW retry exhaustion. |
 
