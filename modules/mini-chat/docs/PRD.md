@@ -449,6 +449,7 @@ When a chat is deleted, the system MUST mark attachments for asynchronous cleanu
 - Usage events MUST be idempotent (keyed by `turn_id` / `request_id`).
 - No synchronous billing RPC is required during message execution.
 - All LLM invocations that take a quota reserve produce exactly one terminal billing event (completed, failed, or aborted), ensuring no credit drift under disconnect or crash scenarios.
+- Exactly one terminal settlement per reserved invocation, enforced via DB-atomic conditional finalization (CAS guard on turn state). No in-memory locks; all finalization paths — including the orphan watchdog — use the same database-level mutual exclusion.
 - Failed LLM invocations that reach the provider may incur token charges and are billed accordingly based on actual consumption.
 
 **Deferred to P2+**: detailed billing integration contracts (event schemas, RPC interfaces, outbox requirements, credit proxy endpoints). See DESIGN.md section 5 for additional context.

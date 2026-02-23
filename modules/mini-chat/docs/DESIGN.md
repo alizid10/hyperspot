@@ -2402,11 +2402,11 @@ A periodic background job detects and cleans up turns abandoned by crashed pods.
 
 **Timeout**: configurable per deployment; default: 5 minutes.
 
-**Action** (all steps in a single DB transaction):
-1. Transition the turn to `failed` with `error_code = 'orphan_timeout'`.
+**Action** (all steps in a single DB transaction, using the finalization CAS guard defined in section 5.3):
+1. Execute: `UPDATE chat_turns SET state = 'failed', error_code = 'orphan_timeout', completed_at = now() WHERE id = :turn_id AND state = 'running'`. If `rows_affected = 0`, another finalizer already completed this turn — skip to step 4 (metric only).
 2. Commit a bounded best-effort quota debit for the turn (same rule as cancel/disconnect: debit the reserved estimate).
 3. Insert a `usage_outbox` row with `outcome = "failed"`, `settlement_method = "estimated"` (see section 5.3 turn finalization contract).
-3. Emit metric: `mini_chat_orphan_turn_total` (counter, labeled by `chat_id` excluded — use only low-cardinality labels such as `{reason}` where `reason` = `timeout`).
+4. Emit metric: `mini_chat_orphan_turn_total` (counter, labeled by `chat_id` excluded — use only low-cardinality labels such as `{reason}` where `reason` = `timeout`).
 
 **Scheduling**: the watchdog runs as a periodic task within the module (e.g. every 60 seconds). It MUST be leader-elected or sharded to avoid duplicate transitions across replicas.
 
@@ -2499,7 +2499,7 @@ After a turn reaches a terminal state, Mini Chat emits a usage event via EventMa
 | `next_retry_at` | TIMESTAMPTZ | Earliest time for next delivery attempt |
 | `attempts` | INT | Number of delivery attempts (default 0) |
 
-Unique constraint: `(turn_id, request_id)` - prevents duplicate outbox rows for the same turn.
+Unique constraint: `(turn_id, request_id)` — enforces at most one terminal outbox event per turn invocation at the database level. All finalizers MUST insert the outbox row within the same transaction as the guarded state transition (CAS on `chat_turns.state = 'running'`, section 5.3) and quota settlement. If an outbox INSERT fails with a unique-violation error, the finalizer MUST treat the event as already emitted and MUST NOT re-emit.
 
 **Transactional rule**: the quota usage commit (updating `quota_usage` rows) and the outbox row insert MUST happen in the same database transaction. If either fails, the entire transaction rolls back. This guarantees that every committed quota change has a corresponding pending event.
 
@@ -2541,6 +2541,27 @@ For any outcome where the server applies a quota debit (actual or estimated), th
 - Quota settlement (reserve release or commit of actual/estimated usage) and outbox INSERT MUST be atomic within one DB transaction.
 - Outbox uniqueness key remains `(turn_id, request_id)`.
 - Consumer deduplication remains by `(tenant_id, turn_id, request_id)`.
+
+#### Finalization mutual exclusion invariant
+
+Exactly one finalizer may transition a turn from `IN_PROGRESS` (`running`) to a terminal billing state (`COMPLETED`/`FAILED`/`ABORTED`). This MUST be enforced at the database level using a single conditional update (CAS guard), not in-memory locks.
+
+Every finalization path — normal completion (`done`), terminal provider error, client disconnect abort, and orphan watchdog timeout — MUST execute the same guarded update pattern:
+
+```sql
+UPDATE chat_turns
+SET state = :terminal_state, completed_at = now(), ...
+WHERE id = :turn_id AND state = 'running'
+```
+
+(`state = 'running'` is the DB-level equivalent of `billing_state = IN_PROGRESS`; see billing state mapping in section 5.4.)
+
+The finalizer MUST check `rows_affected` from this update:
+
+- **`rows_affected = 1`**: this finalizer won the CAS race. Proceed with quota settlement and `usage_outbox` insertion within the same transaction.
+- **`rows_affected = 0`**: another finalizer already transitioned the turn. This finalizer MUST treat the turn as already finalized, MUST NOT debit quota, and MUST NOT emit an outbox event. It MUST be a silent no-op.
+
+No finalization path is exempt from this guard. The orphan watchdog uses the identical CAS pattern (`WHERE state = 'running'`) and cannot "finalize late" if the stream already completed or was already finalized by another path.
 
 #### Usage accounting rules per outcome
 
