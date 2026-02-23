@@ -652,7 +652,7 @@ The UI experience MUST be resilient to SSE disconnects and idempotency conflicts
 #### Disconnect before terminal event
 
 - If the SSE stream disconnects before `done`/`error`, the UI MUST treat the send as indeterminate and MUST NOT auto-retry `POST /messages:stream` with the same `request_id`.
-- After disconnect, the UI MAY call `GET /v1/chats/{chat_id}/turns/{request_id}` to determine whether the turn completed.
+- After disconnect, the UI MUST call `GET /v1/chats/{chat_id}/turns/{request_id}` to determine whether the turn completed.
 - The UI MUST show a user-visible banner with the exact text: `Connection lost. Message delivery is uncertain. You can resend.`
 - If the user chooses to resend, the UI MUST generate a new `request_id`.
 
@@ -708,11 +708,11 @@ Turns stuck in `running` state beyond a configurable timeout (e.g. pod crash wit
 **Description**: Public HTTP API for chat management, message streaming, file upload, and message reactions. All endpoints require authentication and tenant license verification.
 **Breaking Change Policy**: Versioned via URL prefix (`/v1/`). Breaking changes require new version.
 
-#### Turn Status (read-only) API (P1 optional, recommended)
+#### Turn Status (read-only) API
 
 - [ ] `p1` - **ID**: `cpt-cf-mini-chat-interface-turn-status`
 
-Support and UX recovery flows SHOULD be able to query authoritative turn state backed by `chat_turns`.
+Support and UX recovery flows MUST be able to query authoritative turn state backed by `chat_turns`.
 
 **Endpoint**: `GET /v1/chats/{chat_id}/turns/{request_id}`
 

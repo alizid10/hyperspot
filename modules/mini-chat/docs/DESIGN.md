@@ -459,11 +459,11 @@ Active generation detection and completed replay are based on a durable `chat_tu
 
 Reconnect rule (P1): if the SSE stream disconnects before a terminal `done`/`error`, the UI MUST NOT automatically retry `POST /messages:stream` with the same `request_id` (it will most likely hit `409 Conflict`). The UI should treat the send as indeterminate and require explicit user action (resend with a new `request_id`).
 
-**P1 optional, recommended**: expose a read API for turn state backed by `chat_turns` (for example `GET /v1/chats/{id}/turns/{request_id}`) so support and UI recovery flows can query authoritative turn state rather than inferring it from client retry outcomes.
+The service MUST expose a read API for turn state backed by `chat_turns` (`GET /v1/chats/{id}/turns/{request_id}`) so support and UI recovery flows can query authoritative turn state rather than inferring it from client retry outcomes. Required for P1 crash-recovery UX (see `cpt-cf-mini-chat-fr-ux-recovery`).
 
-#### Turn Status API (P1 optional, recommended) — **ID**: `cpt-cf-mini-chat-interface-turn-status`
+#### Turn Status API — **ID**: `cpt-cf-mini-chat-interface-turn-status`
 
-To support reconnect UX and reduce support reliance on direct DB inspection, the service SHOULD expose a read-only turn status endpoint backed by `chat_turns`.
+To support reconnect UX and reduce support reliance on direct DB inspection, the service MUST expose a read-only turn status endpoint backed by `chat_turns`.
 
 **Endpoint**: `GET /v1/chats/{id}/turns/{request_id}`
 
