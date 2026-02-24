@@ -1505,6 +1505,7 @@ dependencies = [
  "async-trait",
  "axum",
  "bytes",
+ "cf-authz-resolver-sdk",
  "cf-modkit",
  "cf-modkit-macros",
  "cf-modkit-security",
