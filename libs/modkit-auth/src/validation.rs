@@ -85,7 +85,13 @@ pub fn validate_claims(
     // 3. Validate expiration with leeway
     if let Some(exp_value) = raw.get(StandardClaim::EXP) {
         let exp = parse_timestamp(exp_value, StandardClaim::EXP)?;
-        if now > exp + leeway {
+        let exp_with_leeway =
+            exp.checked_add(leeway)
+                .ok_or_else(|| ClaimsError::InvalidClaimFormat {
+                    field: StandardClaim::EXP.to_owned(),
+                    reason: "timestamp with leeway is out of range".to_owned(),
+                })?;
+        if now > exp_with_leeway {
             return Err(ClaimsError::Expired);
         }
     }
@@ -93,7 +99,13 @@ pub fn validate_claims(
     // 4. Validate not-before with leeway
     if let Some(nbf_value) = raw.get(StandardClaim::NBF) {
         let nbf = parse_timestamp(nbf_value, StandardClaim::NBF)?;
-        if now < nbf - leeway {
+        let nbf_with_leeway =
+            nbf.checked_sub(leeway)
+                .ok_or_else(|| ClaimsError::InvalidClaimFormat {
+                    field: StandardClaim::NBF.to_owned(),
+                    reason: "timestamp with leeway is out of range".to_owned(),
+                })?;
+        if now < nbf_with_leeway {
             return Err(ClaimsError::NotYetValid);
         }
     }
@@ -411,5 +423,39 @@ mod tests {
         let value = json!(["api", "ui"]);
         let audiences = extract_audiences(&value).unwrap();
         assert_eq!(audiences, vec!["api", "ui"]);
+    }
+
+    #[test]
+    fn test_exp_overflow_returns_error() {
+        // i64::MAX is a valid unix timestamp parse but adding leeway overflows
+        let claims = json!({ "exp": i64::MAX });
+        let config = ValidationConfig {
+            leeway_seconds: 60,
+            ..Default::default()
+        };
+        let err = validate_claims(&claims, &config).unwrap_err();
+        match err {
+            ClaimsError::InvalidClaimFormat { field, .. } => {
+                assert_eq!(field, "exp");
+            }
+            other => panic!("expected InvalidClaimFormat for exp overflow, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_nbf_overflow_returns_error() {
+        // i64::MIN is a valid unix timestamp parse but subtracting leeway overflows
+        let claims = json!({ "nbf": i64::MIN });
+        let config = ValidationConfig {
+            leeway_seconds: 60,
+            ..Default::default()
+        };
+        let err = validate_claims(&claims, &config).unwrap_err();
+        match err {
+            ClaimsError::InvalidClaimFormat { field, .. } => {
+                assert_eq!(field, "nbf");
+            }
+            other => panic!("expected InvalidClaimFormat for nbf overflow, got {other:?}"),
+        }
     }
 }
